@@ -7,14 +7,18 @@ path           = require "path"
 methodOverride = require "method-override"
 bodyParser     = require "body-parser"
 socketio       = require "socket.io"
+ioClient       = require "socket.io-client"
 errorHandler   = require "error-handler"
 
 log       = require "./lib/log"
-Generator = require "./lib/Generator"
 
 app       = express()
 server    = http.createServer app
 io        = socketio.listen server
+address  = "http://localhost:3002"
+generator = ioClient.connect "#{address}",
+	"reconnect":          true
+	"reconnection delay": 2000
 
 # collection of client sockets
 sockets = []
@@ -35,6 +39,12 @@ sockets = []
 # Firstly lets just seperate these two services
 # We'll connect to the person generator on a static port 3002
 # So we can pipe that data to the conntected clients
+
+# setup connection logic
+console.log "connecting to #{address}"
+
+generator.on "connect", ->
+	console.log "connected"
 
 # websocket connection logic
 io.on "connection", (socket) ->
