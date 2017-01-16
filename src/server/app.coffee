@@ -9,29 +9,29 @@ bodyParser     = require "body-parser"
 socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
 errorHandler   = require "error-handler"
-mongoose 			 = require "mongoose"
+mongoose       = require "mongoose"
 
-log       		 = require "./lib/log"
+log            = require "./lib/log"
 
-Service  	 = require "./models/service-model"
-app       	 = express()
-server    	 = http.createServer app
-io        	 = socketio.listen server
-host  	  	 = "http://localhost"
+Service      = require "./models/service-model"
+app          = express()
+server       = http.createServer app
+io           = socketio.listen server
+host         = "http://localhost"
 mongoAddress = "mongodb://localhost:27017/Services"
-generator 	 = null
+generator    = null
 
 # init DB
 db = mongoose.connection
 db.on 'connecting', ->
-	log.info "connecting to mongodb"
+  log.info "connecting to mongodb"
 db.on 'error', ->
-	log.info "error connecting to mongodb"
+  log.info "error connecting to mongodb"
 db.on 'disconnected', ->
-	log.info "disconnected from mongodb"
-	setTimeout ->
-		mongoose.connect mongoAddress, { server: { auto_reconnect: true } }
-	, 5000
+  log.info "disconnected from mongodb"
+  setTimeout ->
+    mongoose.connect mongoAddress, { server: { auto_reconnect: true } }
+  , 5000
 
 
 # TODO We need to get the data from the person-generator service
@@ -63,71 +63,71 @@ sockets = []
 # connect to generator service
 
 getGenerator = (port) ->
-	address = "#{host}:#{port}"
-	log.info "connecting to generator at #{address}"
-	# We have the port, try to connect
-	return ioClient.connect address,
-		"reconnection":       false
-		"reconnection delay": 2000
+  address = "#{host}:#{port}"
+  log.info "connecting to generator at #{address}"
+  # We have the port, try to connect
+  return ioClient.connect address,
+    "reconnection":       false
+    "reconnection delay": 2000
 
 retry = ->
-	setTimeout ->
-		connectToGenerator()
-	, 5000
+  setTimeout ->
+    connectToGenerator()
+  , 5000
 
 connectToGenerator = ->
-	Service.findOne { name: "person-generator"}, (err, data) ->
-		# check for errors
-		if(err)
-			log.info "Error", err
-			retry()
-		if(!data)
-			log.info "Error: no data"
-			retry()
-		generator = getGenerator data.port
+  Service.findOne { name: "person-generator"}, (err, data) ->
+    # check for errors
+    if(err)
+      log.info "Error", err
+      retry()
+    if(!data)
+      log.info "Error: no data"
+      retry()
+    generator = getGenerator data.port
 
-		generator.on "connect", (socket) ->
-			log.info "connected to generator"
-			generator.on "dataGenerated", (data) ->
-				socket.emit "persons:create", data for socket in sockets
+    generator.on "connect", (socket) ->
+      log.info "connected to generator"
+      generator.on "dataGenerated", (data) ->
+        socket.emit "persons:create", data for socket in sockets
 
-		generator.on "connect_error", (err) ->
-			log.info "could not reach generator at #{data.port}"
-			retry()
+    generator.on "connect_error", (err) ->
+      log.info "could not reach generator at #{data.port}"
+      retry()
 
-		generator.on "disconnect", ->
-			log.info "disconnected from generator"
-			retry()
+    generator.on "disconnect", ->
+      log.info "disconnected from generator"
+      retry()
 
 # websocket connection logic
 io.on "connection", (socket) ->
-	# add socket to client sockets
-	sockets.push socket
-	log.info "Socket connected, #{sockets.length} client(s) active"
+  # add socket to client sockets
+  sockets.push socket
+  log.info "Socket connected, #{sockets.length} client(s) active"
 
-	# disconnect logic
-	socket.on "disconnect", ->
-		# remove socket from client sockets
-		sockets.splice sockets.indexOf(socket), 1
-		log.info "Socket disconnected, #{sockets.length} client(s) active"
+  # disconnect logic
+  socket.on "disconnect", ->
+    # remove socket from client sockets
+    sockets.splice sockets.indexOf(socket), 1
+    log.info "Socket disconnected, #{sockets.length} client(s) active"
 
 # express application middleware
 app
-	.use bodyParser.urlencoded extended: true
-	.use bodyParser.json()
-	.use methodOverride()
-	.use express.static path.resolve __dirname, "../client"
+  .use bodyParser.urlencoded extended: true
+  .use bodyParser.json()
+  .use methodOverride()
+  .use express.static path.resolve __dirname, "../client"
 
 # express application settings
 app
-	.set "view engine", "jade"
-	.set "views", path.resolve __dirname, "./views"
-	.set "trust proxy", true
+  .set "view engine", "jade"
+  .set "views", path.resolve __dirname, "./views"
+  .set "trust proxy", true
 
 # express application routess
 app
-	.get "/", (req, res, next) ->
-		res.render "main"
+  .get "/", (req, res, next) ->
+    res.render "main"
 
 # start the server
 mongoose.connect mongoAddress, { server: { auto_reconnect: true } }
