@@ -11,15 +11,15 @@ ioClient       = require "socket.io-client"
 errorHandler   = require "error-handler"
 mongoose 			 = require "mongoose"
 
-log       = require "./lib/log"
+log       		 = require "./lib/log"
 
-SharedData = require "./models/shared-data-model"
-app       = express()
-server    = http.createServer app
-io        = socketio.listen server
-host  = "http://localhost"
+Service  	 = require "./models/service-model"
+app       	 = express()
+server    	 = http.createServer app
+io        	 = socketio.listen server
+host  	  	 = "http://localhost"
 mongoAddress = "mongodb://localhost:27017/Services"
-generator = null
+generator 	 = null
 
 # init DB
 db = mongoose.connection
@@ -76,7 +76,7 @@ retry = ->
 	, 5000
 
 connectToGenerator = ->
-	SharedData.findOne { service: "person-generator"}, (err, data) ->
+	Service.findOne { name: "person-generator"}, (err, data) ->
 		# check for errors
 		if(err)
 			log.info "Error", err
