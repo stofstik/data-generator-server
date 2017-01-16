@@ -9,27 +9,49 @@ bodyParser     = require "body-parser"
 socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
 errorHandler   = require "error-handler"
+mongoose 			 = require "mongoose"
 
 log       = require "./lib/log"
 
+SharedData = require "./models/shared-data-model"
 app       = express()
 server    = http.createServer app
 io        = socketio.listen server
-address  = "http://localhost:3002" # TODO a way to find the port
-generator = ioClient.connect "#{address}",
-	"reconnect":          true
-	"reconnection delay": 2000
+host  = "http://localhost"
+mongoAddress = "mongodb://localhost:27017/Services"
+generator = null
+
+# init DB
+db = mongoose.connection
+db.on 'connecting', ->
+	log.info "connecting to mongodb"
+db.on 'error', ->
+	log.info "error connecting to mongodb"
+db.on 'disconnected', ->
+	log.info "disconnected from mongodb"
+	setTimeout ->
+		mongoose.connect mongoAddress, { server: { auto_reconnect: true } }
+	, 5000
+
 
 # TODO We need to get the data from the person-generator service
 # So we need to connect to it in some way
 # But we dont know on which port
 #
-# We could use an entry in a shared database
-# We could use a text file somewhere
-# etc. Basically a global variable somewhere, which both services have access to
+# ########################
+# ### SERVICE REGISTRY ###
+# ########################
+# Keep track of services and ports in mongodb
+# Text file somewhere lolz
+# etc. Basically a global variable somewhere, which all services have access to
 #
 # We could do some unixy thing maybe with netstat? meh...
-# Scan ports?
+# Scan ports? meh too slow
+#
+# If one entity has a fixed port we could always connect to that
+#
+# Maybe some kind of fallback mechanism?
+# I would like to to eliminate single points of failure
 #
 # Firstly lets just seperate these two services DONE
 # We'll connect to the person generator on a static port 3002 DONE
@@ -39,17 +61,43 @@ generator = ioClient.connect "#{address}",
 sockets = []
 
 # connect to generator service
-console.log "connecting to #{address}"
 
-generator.on "connect", (socket) ->
-	console.log "connected to generator"
-	generator.on "dataGenerated", (data) ->
-		socket.emit "persons:create", data for socket in sockets
-	
-# connection lost, remove listener, we'll get double data otherwise
-generator.on "disconnect", ->
-	console.log "disconnected from generator"
-	generator.removeListener "dataGenerated"
+getGenerator = (port) ->
+	address = "#{host}:#{port}"
+	log.info "connecting to generator at #{address}"
+	# We have the port, try to connect
+	return ioClient.connect address,
+		"reconnection":       false
+		"reconnection delay": 2000
+
+retry = ->
+	setTimeout ->
+		connectToGenerator()
+	, 5000
+
+connectToGenerator = ->
+	SharedData.findOne { service: "person-generator"}, (err, data) ->
+		# check for errors
+		if(err)
+			log.info "Error", err
+			retry()
+		if(!data)
+			log.info "Error: no data"
+			retry()
+		generator = getGenerator data.port
+
+		generator.on "connect", (socket) ->
+			log.info "connected to generator"
+			generator.on "dataGenerated", (data) ->
+				socket.emit "persons:create", data for socket in sockets
+
+		generator.on "connect_error", (err) ->
+			log.info "could not reach generator at #{data.port}"
+			retry()
+
+		generator.on "disconnect", ->
+			log.info "disconnected from generator"
+			retry()
 
 # websocket connection logic
 io.on "connection", (socket) ->
@@ -78,9 +126,11 @@ app
 
 # express application routess
 app
-	.get "/", (req, res, next) =>
+	.get "/", (req, res, next) ->
 		res.render "main"
 
 # start the server
+mongoose.connect mongoAddress, { server: { auto_reconnect: true } }
+connectToGenerator()
 server.listen 3000
 log.info "Listening on 3000"
