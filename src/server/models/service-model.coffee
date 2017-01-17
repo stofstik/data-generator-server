@@ -8,5 +8,6 @@ serviceSchema = new Schema
 		updatedAt: { type: Date, 'default': Date.now }
 
 serviceModel = mongoose.model('service', serviceSchema)
+serviceModel.SERVICE_NAME = "person-generator"
 
 module.exports = serviceModel
