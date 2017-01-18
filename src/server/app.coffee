@@ -9,74 +9,29 @@ bodyParser     = require "body-parser"
 socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
 errorHandler   = require "error-handler"
-mongoose       = require "mongoose"
 
 log            = require "./lib/log"
 
-Service      = require "./models/service-model"
 app          = express()
 server       = http.createServer app
 io           = socketio.listen server
-host         = "http://localhost"
-mongoAddress = "mongodb://localhost:27017/Services"
+# fixed location of service registry
+servRegAddress = "http://localhost:3001"
 
-# init mongo status logging
-db = mongoose.connection
-db.on 'connected', ->
-  log.info "connected to mongodb"
-db.on 'connecting', ->
-  log.info "connecting to mongodb"
-db.on 'error', (err) ->
-  console.error err
-  log.info "error connecting to mongodb"
-db.on 'disconnected', ->
-  log.info "disconnected from mongodb"
+SERVICE_NAME = "web-server"
 
 # collection of client sockets
 sockets = []
-
-retry = ->
-  setTimeout ->
-    connectToGenerator()
-  , 5000
-
-# connect to generator service
-connectToGenerator = ->
-  # find the person-generator service in the db
-  Service.findOne { name: Service.SERVICE_NAME}, (err, data) ->
-    # check for errors
-    if(err)
-      log.info "Error", err
-      retry()
-    if(!data)
-      log.info "Error: no data"
-      retry()
-
-    # connect to the service with the data from the db
-    address = "#{host}:#{data.port}"
-    log.info "connecting to generator at #{address}"
-    generator = ioClient.connect address,
-      # we want to switch ports so handle reconnection ourselves
-      "reconnection": false
-
-    generator.on "connect", (socket) ->
-      log.info "connected to generator"
-      generator.on "dataGenerated", (data) ->
-        socket.emit "persons:create", data for socket in sockets
-
-    generator.on "connect_error", (err) ->
-      log.info "could not reach generator at #{data.port}"
-      retry()
-
-    generator.on "disconnect", ->
-      log.info "disconnected from generator"
-      retry()
 
 # websocket connection logic
 io.on "connection", (socket) ->
   # add socket to client sockets
   sockets.push socket
   log.info "Socket connected, #{sockets.length} client(s) active"
+
+  # TODO some kind of filter to pass on to the generators
+  socket.on "setFilter", (filter) ->
+    console.log filter
 
   # disconnect logic
   socket.on "disconnect", ->
@@ -102,8 +57,15 @@ app
   .get "/", (req, res, next) ->
     res.render "main"
 
-# start the server
-mongoose.connect mongoAddress
-connectToGenerator()
-server.listen 3000
-log.info "Listening on 3000"
+# connect to the service registry
+serviceRegistry = ioClient.connect servRegAddress,
+  "reconnection": true
+
+# when we are connected to the registry start the web server
+serviceRegistry.on "connect", (socket) ->
+  server.listen 3000
+  serviceRegistry.emit "service-up",
+    name: SERVICE_NAME
+    port: server.address().port
+
+  log.info "Listening on port", server.address().port
