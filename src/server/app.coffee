@@ -52,7 +52,7 @@ app
   .set "views", path.resolve __dirname, "./views"
   .set "trust proxy", true
 
-# express application routess
+# express application routes
 app
   .get "/", (req, res, next) ->
     res.render "main"
@@ -63,9 +63,39 @@ serviceRegistry = ioClient.connect servRegAddress,
 
 # when we are connected to the registry start the web server
 serviceRegistry.on "connect", (socket) ->
+  log.info "service registry connected"
   server.listen 3000
-  serviceRegistry.emit "service-up",
-    name: SERVICE_NAME
-    port: server.address().port
-
   log.info "Listening on port", server.address().port
+
+  # we want to subscribe to whatever person-generator emits
+  serviceRegistry.emit "subscribe-to",
+    name: "person-generator"
+
+instances = [] # TODO find a way to do this in the registry, it is ugly here
+# when a new service we are subscribed to starts, connect to it
+serviceRegistry.on "service-up", (service) ->
+  switch service.name
+    when "person-generator"
+      if(instances.indexOf(service.port) != -1) # hurts my eyes...
+        log.info "already connected"
+        return
+      instance = ioClient.connect "http://localhost:#{service.port}",
+        "reconnection": false
+
+      instance.on "connect", (socket) ->
+        console.info "connected to, #{service.name}:#{service.port}"
+        instances.push service.port
+
+      instance.on "disconnect", (socket) ->
+        console.info "disconnected from, #{service.name}:#{service.port}"
+        instances.splice instances.indexOf(service.port), 1 # ouch stop plx
+
+      instance.on "data", (data) ->
+        log.info data
+        socket.emit "persons:create", data for socket in sockets
+    else
+      log.info "unknown service, did we subscribe to that?"
+
+# notify of service registry disconnect
+serviceRegistry.on "disconnect", () ->
+  log.info "service registry disconnected"
