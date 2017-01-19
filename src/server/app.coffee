@@ -67,33 +67,40 @@ subCommand = (file) ->
     .output('-p')
     .outputFileType('mp3')
 
-# app
-  # .get "/audiostream.mp3", (req, res) ->
-    # res.set
-      # 'Content-Type': 'audio/mpeg3'
-      # 'Transfer-Encoding': 'chunked'
-    # soxCommand = SoxCommand()
+app
+  .get "/audiostream.mp3", (req, res) ->
+    res.set
+      'Content-Type': 'audio/mpeg3'
+      'Transfer-Encoding': 'chunked'
 
-    # soxCommand
-      # .inputSubCommand(subCommand(src1))
-      # .inputSubCommand(subCommand(src2))
-      # .output(res)
-      # .outputFileType('mp3')
-      # .outputChannels(1)
-      # .combine('merge')
+    src1 = "/home/stofstik/Downloads/Comfort_Fit_-_03_-_Sorry.mp3"
+    src2 = "/home/stofstik/Downloads/Kriss_-_03_-_jazz_club.mp3"
+    soxCommand = SoxCommand()
 
-    # soxCommand.on "prepare", (args) ->
-      # console.log "preparing with #{args.join ' '}"
+    soxCommand.subCommandChainable = (files) ->
+      for file in files
+        this.inputSubCommand(subCommand(file))
+      return this
 
-    # soxCommand.on "start", (cmdline) ->
-      # console.log "spawned sox with cmd: #{cmdline}"
+    soxCommand
+      .subCommandChainable([src1, src2], soxCommand)
+      .output(res)
+      .outputFileType('mp3')
+      .outputChannels(1)
+      .combine('merge')
 
-    # soxCommand.on "error", (err, stdout, stderr) ->
-      # console.log "cannot process audio #{err.message}"
-      # console.log "sox command stdout #{stdout}"
-      # console.log "sox command stderr #{stderr}"
+    soxCommand.on "prepare", (args) ->
+      console.log "preparing with #{args.join ' '}"
 
-    # soxCommand.run()
+    soxCommand.on "start", (cmdline) ->
+      console.log "spawned sox with cmd: #{cmdline}"
+
+    soxCommand.on "error", (err, stdout, stderr) ->
+      console.log "cannot process audio #{err.message}"
+      console.log "sox command stdout #{stdout}"
+      console.log "sox command stderr #{stderr}"
+
+    soxCommand.run()
 
 # connect to the service registry
 serviceRegistry = ioClient.connect servRegAddress,
@@ -143,11 +150,6 @@ serviceRegistry.on "service-up", (service) ->
         console.info "connected to, #{service.name}:#{service.port}"
         instances.push service.port
 
-      ss(instance).on "audio", (stream) ->
-        for socket in sockets
-          outgoing = ss.createStream()
-          ss(socket).emit "audio", outgoing
-          stream.pipe(outgoing)
 
     else
       log.info "unknown service, did we subscribe to that?"
