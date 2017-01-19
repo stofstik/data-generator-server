@@ -71,12 +71,12 @@ serviceRegistry.on "connect", (socket) ->
   serviceRegistry.emit "subscribe-to",
     name: "person-generator"
 
-instances = [] # TODO find a way to do this in the registry, it is ugly here
+instances = []
 # when a new service we are subscribed to starts, connect to it
 serviceRegistry.on "service-up", (service) ->
   switch service.name
     when "person-generator"
-      if(instances.indexOf(service.port) != -1) # hurts my eyes...
+      if(instances.indexOf(service.port) != -1)
         log.info "already connected"
         return
       instance = ioClient.connect "http://localhost:#{service.port}",
@@ -88,7 +88,7 @@ serviceRegistry.on "service-up", (service) ->
 
       instance.on "disconnect", (socket) ->
         console.info "disconnected from, #{service.name}:#{service.port}"
-        instances.splice instances.indexOf(service.port), 1 # ouch stop plx
+        instances.splice instances.indexOf(service.port), 1
 
       instance.on "data", (data) ->
         log.info data
