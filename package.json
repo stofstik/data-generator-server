@@ -27,6 +27,7 @@
     "mongoose": "^4.7.7",
     "socket.io": "^1.3.5",
     "socket.io-client": "^1.3.5",
+    "sox-audio": "^0.3.0",
     "sox-stream": "^2.0.0",
     "underscore": "^1.8.3",
     "winston": "^1.0.0"

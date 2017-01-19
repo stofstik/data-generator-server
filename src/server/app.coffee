@@ -10,6 +10,7 @@ bodyParser     = require "body-parser"
 socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
 errorHandler   = require "error-handler"
+SoxCommand     = require "sox-audio"
 sox            = require "sox-stream"
 
 log            = require "./lib/log"
@@ -59,15 +60,41 @@ app
   .get "/", (req, res, next) ->
     res.render "main"
 
+subCommand = (file) ->
+  return SoxCommand()
+    .input(file)
+    .output('-p')
+    .outputFileType('mp3')
+
 app
   .get "/audiostream.mp3", (req, res) ->
     res.set
       'Content-Type': 'audio/mpeg3'
       'Transfer-Encoding': 'chunked'
-    src = fs.createReadStream "/home/stofstik/Downloads/Comfort_Fit_-_03_-_Sorry.mp3"
-    lowerVolume = sox({ input: { type: 'mp3', volume: 0.1 }, output: { type: 'mp3' }})
-    src.pipe(lowerVolume).pipe res
+    src1 = "/home/stofstik/Downloads/Comfort_Fit_-_03_-_Sorry.mp3"
+    src2 = "/home/stofstik/Downloads/Kriss_-_03_-_jazz_club.mp3"
+    soxCommand = SoxCommand()
 
+    soxCommand
+      .inputSubCommand(subCommand(src1))
+      .inputSubCommand(subCommand(src2))
+      .output(res)
+      .outputFileType('mp3')
+      .outputChannels(1)
+      .combine('merge')
+
+    soxCommand.on "prepare", (args) ->
+      console.log "preparing with #{args.join ' '}"
+
+    soxCommand.on "start", (cmdline) ->
+      console.log "spawned sox with cmd: #{cmdline}"
+
+    soxCommand.on "error", (err, stdout, stderr) ->
+      console.log "cannot process audio #{err.message}"
+      console.log "sox command stdout #{stdout}"
+      console.log "sox command stderr #{stderr}"
+
+    soxCommand.run()
 
 # connect to the service registry
 serviceRegistry = ioClient.connect servRegAddress,
