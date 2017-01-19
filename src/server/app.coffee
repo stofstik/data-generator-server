@@ -1,5 +1,6 @@
 # required modules
 _              = require "underscore"
+fs             = require "fs"
 async          = require "async"
 http           = require "http"
 express        = require "express"
@@ -9,6 +10,7 @@ bodyParser     = require "body-parser"
 socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
 errorHandler   = require "error-handler"
+sox            = require "sox-stream"
 
 log            = require "./lib/log"
 
@@ -57,6 +59,16 @@ app
   .get "/", (req, res, next) ->
     res.render "main"
 
+app
+  .get "/audiostream.mp3", (req, res) ->
+    res.set
+      'Content-Type': 'audio/mpeg3'
+      'Transfer-Encoding': 'chunked'
+    src = fs.createReadStream "/home/stofstik/Downloads/Comfort_Fit_-_03_-_Sorry.mp3"
+    lowerVolume = sox({ input: { type: 'mp3', volume: 0.1 }, output: { type: 'mp3' }})
+    src.pipe(lowerVolume).pipe res
+
+
 # connect to the service registry
 serviceRegistry = ioClient.connect servRegAddress,
   "reconnection": true
@@ -70,6 +82,8 @@ serviceRegistry.on "connect", (socket) ->
   # we want to subscribe to whatever person-generator emits
   serviceRegistry.emit "subscribe-to",
     name: "person-generator"
+  serviceRegistry.emit "subscribe-to",
+    name: "sound-generator"
 
 instances = []
 # when a new service we are subscribed to starts, connect to it
