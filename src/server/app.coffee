@@ -9,6 +9,7 @@ methodOverride = require "method-override"
 bodyParser     = require "body-parser"
 socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
+ss             = require "socket.io-stream"
 errorHandler   = require "error-handler"
 SoxCommand     = require "sox-audio"
 sox            = require "sox-stream"
@@ -66,35 +67,33 @@ subCommand = (file) ->
     .output('-p')
     .outputFileType('mp3')
 
-app
-  .get "/audiostream.mp3", (req, res) ->
-    res.set
-      'Content-Type': 'audio/mpeg3'
-      'Transfer-Encoding': 'chunked'
-    src1 = "/home/stofstik/Downloads/Comfort_Fit_-_03_-_Sorry.mp3"
-    src2 = "/home/stofstik/Downloads/Kriss_-_03_-_jazz_club.mp3"
-    soxCommand = SoxCommand()
+# app
+  # .get "/audiostream.mp3", (req, res) ->
+    # res.set
+      # 'Content-Type': 'audio/mpeg3'
+      # 'Transfer-Encoding': 'chunked'
+    # soxCommand = SoxCommand()
 
-    soxCommand
-      .inputSubCommand(subCommand(src1))
-      .inputSubCommand(subCommand(src2))
-      .output(res)
-      .outputFileType('mp3')
-      .outputChannels(1)
-      .combine('merge')
+    # soxCommand
+      # .inputSubCommand(subCommand(src1))
+      # .inputSubCommand(subCommand(src2))
+      # .output(res)
+      # .outputFileType('mp3')
+      # .outputChannels(1)
+      # .combine('merge')
 
-    soxCommand.on "prepare", (args) ->
-      console.log "preparing with #{args.join ' '}"
+    # soxCommand.on "prepare", (args) ->
+      # console.log "preparing with #{args.join ' '}"
 
-    soxCommand.on "start", (cmdline) ->
-      console.log "spawned sox with cmd: #{cmdline}"
+    # soxCommand.on "start", (cmdline) ->
+      # console.log "spawned sox with cmd: #{cmdline}"
 
-    soxCommand.on "error", (err, stdout, stderr) ->
-      console.log "cannot process audio #{err.message}"
-      console.log "sox command stdout #{stdout}"
-      console.log "sox command stderr #{stderr}"
+    # soxCommand.on "error", (err, stdout, stderr) ->
+      # console.log "cannot process audio #{err.message}"
+      # console.log "sox command stdout #{stdout}"
+      # console.log "sox command stderr #{stderr}"
 
-    soxCommand.run()
+    # soxCommand.run()
 
 # connect to the service registry
 serviceRegistry = ioClient.connect servRegAddress,
@@ -110,9 +109,10 @@ serviceRegistry.on "connect", (socket) ->
   serviceRegistry.emit "subscribe-to",
     name: "person-generator"
   serviceRegistry.emit "subscribe-to",
-    name: "sound-generator"
+    name: "audio-streamer"
 
 instances = []
+audioStreams = []
 # when a new service we are subscribed to starts, connect to it
 serviceRegistry.on "service-up", (service) ->
   switch service.name
@@ -134,6 +134,21 @@ serviceRegistry.on "service-up", (service) ->
       instance.on "data", (data) ->
         log.info data
         socket.emit "persons:create", data for socket in sockets
+
+    when "audio-streamer"
+      instance = ioClient.connect "http://localhost:#{service.port}",
+        "reconnection": false
+
+      instance.on "connect", (socket) ->
+        console.info "connected to, #{service.name}:#{service.port}"
+        instances.push service.port
+
+      ss(instance).on "audio", (stream) ->
+        for socket in sockets
+          outgoing = ss.createStream()
+          ss(socket).emit "audio", outgoing
+          stream.pipe(outgoing)
+
     else
       log.info "unknown service, did we subscribe to that?"
 
