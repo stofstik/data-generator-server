@@ -11,6 +11,7 @@ npm install -g gulp
 
 Install the required dependencies.
 ```bash
+sudo apt-get install sox
 npm install
 ```
 ## Run the application
