@@ -1,18 +1,16 @@
 # required modules
-_              = require "underscore"
 fs             = require "fs"
 async          = require "async"
 http           = require "http"
 express        = require "express"
+request        = require "request"
 path           = require "path"
 methodOverride = require "method-override"
 bodyParser     = require "body-parser"
 socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
-ss             = require "socket.io-stream"
 errorHandler   = require "error-handler"
 SoxCommand     = require "sox-audio"
-sox            = require "sox-stream"
 
 log            = require "./lib/log"
 
@@ -67,40 +65,65 @@ subCommand = (file) ->
     .output('-p')
     .outputFileType('mp3')
 
+# TODO check file integrity
+downloadFile = (service) ->
+  filename = "#{service.name}-#{service.port}.mp3"
+  return (callback) ->
+    request "http://localhost:#{service.port}/audio.mp3"
+      .pipe fs.createWriteStream(filename).on "close", () ->
+        # callback for async, when all tasks finish we'll have an array of
+        # filenames
+        callback(null, "./#{filename}")
+
+# a client is requesting an audio file
 app
-  .get "/audiostream.mp3", (req, res) ->
-    res.set
+  .get "/audiostream.mp3", (req, response) ->
+    response.set
       'Content-Type': 'audio/mpeg3'
       'Transfer-Encoding': 'chunked'
+    # ask the service registry for the locations of all audio-generators
+    request "#{servRegAddress}/getInstancesByServiceName/audio-generator",
+      (err, res, body) ->
+        # do some error checking
+        if(err)
+          console.log err
+          return
+        # the service registry returns an array of objects
+        services = JSON.parse body
+        if(services.err)
+          console.log services.err
+          return
+        # for each connected audio generator download a file over http
+        async.parallel \
+          # return an array of functions
+          (services.map (s) -> return downloadFile(s)), \
+          # results holds an array of results from the callbacks
+          (err, results) ->
+            combineAudio results, response
 
-    src1 = "/home/stofstik/Downloads/Comfort_Fit_-_03_-_Sorry.mp3"
-    src2 = "/home/stofstik/Downloads/Kriss_-_03_-_jazz_club.mp3"
-    soxCommand = SoxCommand()
+combineAudio = (files, outputStream) ->
+  soxCommand = SoxCommand()
 
-    soxCommand.subCommandChainable = (files) ->
-      for file in files
-        this.inputSubCommand(subCommand(file))
-      return this
+  for file in files
+    soxCommand.inputSubCommand \
+      SoxCommand(file).inputFileType("mp3").output("-p")
+  soxCommand.output(outputStream)
+  soxCommand.outputFileType('mp3')
+  soxCommand.outputChannels(1)
+  soxCommand.combine('merge')
 
-    soxCommand
-      .subCommandChainable([src1, src2], soxCommand)
-      .output(res)
-      .outputFileType('mp3')
-      .outputChannels(1)
-      .combine('merge')
+  soxCommand.on "prepare", (args) ->
+    console.log "preparing with #{args.join ' '}"
 
-    soxCommand.on "prepare", (args) ->
-      console.log "preparing with #{args.join ' '}"
+  soxCommand.on "start", (cmdline) ->
+    console.log "spawned sox with cmd: #{cmdline}"
 
-    soxCommand.on "start", (cmdline) ->
-      console.log "spawned sox with cmd: #{cmdline}"
+  soxCommand.on "error", (err, stdout, stderr) ->
+    console.log "cannot process audio #{err.message}"
+    console.log "sox command stdout #{stdout}"
+    console.log "sox command stderr #{stderr}"
 
-    soxCommand.on "error", (err, stdout, stderr) ->
-      console.log "cannot process audio #{err.message}"
-      console.log "sox command stdout #{stdout}"
-      console.log "sox command stderr #{stderr}"
-
-    soxCommand.run()
+  soxCommand.run()
 
 # connect to the service registry
 serviceRegistry = ioClient.connect servRegAddress,
@@ -115,11 +138,8 @@ serviceRegistry.on "connect", (socket) ->
   # we want to subscribe to whatever person-generator emits
   serviceRegistry.emit "subscribe-to",
     name: "person-generator"
-  serviceRegistry.emit "subscribe-to",
-    name: "audio-streamer"
 
 instances = []
-audioStreams = []
 # when a new service we are subscribed to starts, connect to it
 serviceRegistry.on "service-up", (service) ->
   switch service.name
@@ -141,15 +161,6 @@ serviceRegistry.on "service-up", (service) ->
       instance.on "data", (data) ->
         log.info data
         socket.emit "persons:create", data for socket in sockets
-
-    when "audio-streamer"
-      instance = ioClient.connect "http://localhost:#{service.port}",
-        "reconnection": false
-
-      instance.on "connect", (socket) ->
-        console.info "connected to, #{service.name}:#{service.port}"
-        instances.push service.port
-
 
     else
       log.info "unknown service, did we subscribe to that?"

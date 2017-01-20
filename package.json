@@ -25,11 +25,11 @@
     "jquery": "^2.1.4",
     "method-override": "^2.3.3",
     "mongoose": "^4.7.7",
+    "request": "^2.79.0",
     "socket.io": "^1.3.5",
     "socket.io-client": "^1.3.5",
     "socket.io-stream": "^0.9.1",
     "sox-audio": "^0.3.0",
-    "sox-stream": "^2.0.0",
     "underscore": "^1.8.3",
     "winston": "^1.0.0"
   }
