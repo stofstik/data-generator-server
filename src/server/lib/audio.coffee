@@ -12,10 +12,10 @@ audio.combine = (files, outputStream) ->
   # input a list of files to be combined
   for file in files
     soxCommand.inputSubCommand \
-      SoxCommand(file)
-        .inputFileType("mp3")
-        .output("-p")
-        .addEffect("gain", 2) # for some reason combining lowers the gain/volume
+      SoxCommand(file) \
+        .inputFileType("mp3") \
+        .output("-p") \
+        .addEffect("gain", 2)
   # do not save the file, directly stream to client
   soxCommand.output(outputStream)
   soxCommand.outputFileType('mp3')
