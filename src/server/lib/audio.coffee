@@ -5,8 +5,11 @@ audio = {}
 
 audio.combine = (files, outputStream) ->
   # check valid input
-  if(!files || files.length == 0 || typeof files != Array)
+  if(!files || files.length == 0 || !Array.isArray files)
     console.error "not enough files for SoxCommand"
+    outputStream.set
+      "Content-Type": "text/html"
+    return outputStream.json(files: files)
 
   soxCommand = SoxCommand()
   # input a list of files to be combined
@@ -14,8 +17,7 @@ audio.combine = (files, outputStream) ->
     soxCommand.inputSubCommand \
       SoxCommand(file) \
         .inputFileType("mp3") \
-        .output("-p") \
-        .addEffect("gain", 2)
+        .output("-p")
   # do not save the file, directly stream to client
   soxCommand.output(outputStream)
   soxCommand.outputFileType('mp3')
@@ -23,6 +25,8 @@ audio.combine = (files, outputStream) ->
   # only combine if we have multiple files
   if(files.length > 1)
     soxCommand.combine('merge')
+    soxCommand.addEffect("gain", "-n") # normalize
+    soxCommand.addEffect("gain", 6) # increase gain. combining lowers volume?
 
   # set some logging
   soxCommand.on "start", (cmdline) ->
@@ -31,6 +35,7 @@ audio.combine = (files, outputStream) ->
     console.log "cannot process audio #{err.message}"
     console.log "sox command stdout #{stdout}"
     console.log "sox command stderr #{stderr}"
+    outputStream.json(err: err) # tell the client we messed up : (
 
   # all done, delete all files
   soxCommand.on "end", () ->
