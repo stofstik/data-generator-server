@@ -7,8 +7,6 @@ audio.combine = (files, outputStream) ->
   # check valid input
   if(!files || files.length == 0 || !Array.isArray files)
     console.error "not enough files for SoxCommand"
-    outputStream.set
-      "Content-Type": "text/html"
     return outputStream.json(files: files)
 
   soxCommand = SoxCommand()
