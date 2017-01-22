@@ -24,7 +24,7 @@ audio.combine = (files, outputStream) ->
   if(files.length > 1)
     soxCommand.combine('merge')
     soxCommand.addEffect("gain", "-n") # normalize
-    soxCommand.addEffect("gain", 6) # increase gain. combining lowers volume?
+    soxCommand.addEffect("gain", 9) # increase gain. combining lowers volume?
 
   # set some logging
   soxCommand.on "start", (cmdline) ->
