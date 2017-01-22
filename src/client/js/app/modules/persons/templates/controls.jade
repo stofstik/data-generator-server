@@ -1,6 +1,13 @@
 h4 Controls
 
-if pause
-	button(class="btn-primary").btn.pause.active Pause
-else
-	button(class="btn-default").btn.pause Pause
+div.controls
+  if paused
+    button(class="btn-primary").btn.pause.active Pause
+  else
+    button(class="btn-default").btn.pause Pause
+
+  div.age-container
+    span min age:
+    input(id="minAge" class="form-control age-input" placeholder="#{minAge}" type="number")
+    span Max age:
+    input(id="maxAge" class="form-control age-input" placeholder="#{maxAge}" type="number")

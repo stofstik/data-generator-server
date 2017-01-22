@@ -11,7 +11,7 @@ class PersonsView extends Marionette.LayoutView
 		table:    ".persons-table"
 
 	initialize: ->
-		controlsModel     = new Backbone.Model defaults: pause: false
+		controlsModel     = new Backbone.Model defaults: {paused: false}
 		personsCollection = new PersonsCollection controls: controlsModel
 
 		@controlsView = new ControlsView model: controlsModel
