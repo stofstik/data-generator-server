@@ -33,7 +33,6 @@ audio.combine = (files, outputStream) ->
     console.log "cannot process audio #{err.message}"
     console.log "sox command stdout #{stdout}"
     console.log "sox command stderr #{stderr}"
-    outputStream.json(err: err) # tell the client we messed up : (
 
   # all done, delete all files
   soxCommand.on "end", () ->
