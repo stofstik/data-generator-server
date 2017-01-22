@@ -18,7 +18,7 @@ Application.addInitializer ->
 	@navigationView = new NavigationView
 		collection: new LinkCollection [
 			{ url: "/#persons", route: "persons", name: "Persons", active: false }
-			{ url: "/#todos",   route: "todos",   name: "ToDos",   active: false }
+			{ url: "/#todos",   route: "todos",   name: "Audio madness",   active: false }
 		]
 
 	@applicationRegion.show @layoutView
