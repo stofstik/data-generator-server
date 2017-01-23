@@ -11,7 +11,7 @@ npm install -g gulp
 
 Install the required dependencies.
 ```bash
-sudo apt-get install sox
+sudo apt-get install sox lame libsox-fmt-mp3
 npm install
 ```
 ## Run the application
