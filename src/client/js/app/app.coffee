@@ -31,6 +31,9 @@ socket = io.connect "#{address}",
 	"reconnect":          true
 	"reconnection delay": 2000
 
+socket.on "data", (data) ->
+  console.log data
+
 socket.on "connect", ->
 	console.log "Connected"
 
@@ -44,3 +47,4 @@ socket.on "connect", ->
 
 window.Application = Application
 window.socket      = socket
+

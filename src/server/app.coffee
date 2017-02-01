@@ -93,6 +93,7 @@ serviceRegistry.on "service-up", (service) ->
       client.setEncoding('utf-8')
       client.on('data', (data) ->
         log.info "data:", data
+        socket.emit "data", data for socket in sockets
       )
       client.on('end', () ->
         log.info 'ended'
