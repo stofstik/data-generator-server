@@ -1,6 +1,7 @@
 # required modules
 async          = require "async"
 http           = require "http"
+net            = require "net"
 express        = require "express"
 request        = require "request"
 path           = require "path"
@@ -74,11 +75,29 @@ serviceRegistry.on "connect", (socket) ->
   # we want to subscribe to whatever person-generator emits
   serviceRegistry.emit "subscribe-to",
     name: "person-generator"
+  serviceRegistry.emit "subscribe-to",
+    name: "person-stream"
 
 instances = []
 # when a new service we are subscribed to starts, connect to it
 serviceRegistry.on "service-up", (service) ->
   switch service.name
+    when "person-stream"
+      if(instances.indexOf(service.port) != -1)
+        log.info "already connected"
+        return
+      log.info "person-stream up"
+      client = net.createConnection({ port: service.port }, () ->
+        log.info "connected to #{service.name}:#{service.port}"
+      )
+      client.setEncoding('utf-8')
+      client.on('data', (data) ->
+        log.info "data:", data
+      )
+      client.on('end', () ->
+        log.info 'ended'
+      )
+
     when "person-generator"
       if(instances.indexOf(service.port) != -1)
         log.info "already connected"
