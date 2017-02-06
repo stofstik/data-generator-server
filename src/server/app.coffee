@@ -66,6 +66,8 @@ app
 serviceRegistry = ioClient.connect servRegAddress,
   "reconnection": true
 
+log.info "Waiting for service registry..."
+
 # when we are connected to the registry start the web server
 serviceRegistry.on "connect", (socket) ->
   log.info "service registry connected"
