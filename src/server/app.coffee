@@ -9,6 +9,7 @@ methodOverride = require "method-override"
 bodyParser     = require "body-parser"
 socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
+sioStream      = require "socket.io-stream"
 errorHandler   = require "error-handler"
 
 log            = require "./lib/log"
@@ -27,7 +28,11 @@ sockets = []
 # websocket connection logic
 io.on "connection", (socket) ->
   # add socket to client sockets
+  outgoing = sioStream.createStream()
+  sioStream(socket).on 'hello', (stream) ->
+    socket.stream = stream
   sockets.push socket
+  log.info socket.stream
   log.info "Socket connected, #{sockets.length} client(s) active"
 
   # TODO some kind of filter to pass on to the generators
@@ -89,17 +94,24 @@ serviceRegistry.on "service-up", (service) ->
         log.info "already connected"
         return
       log.info "person-stream up"
-      client = net.createConnection({ port: service.port }, () ->
+      # connect to our person stream service directly using a TCP stream
+      serviceConnection = net.createConnection { port: service.port }, () ->
         log.info "connected to #{service.name}:#{service.port}"
-      )
-      client.setEncoding('utf-8')
-      client.on('data', (data) ->
+
+      serviceConnection.setEncoding('utf-8')
+
+      nspPersonStream = io.of '/person-stream'
+
+      for socket in sockets
+        serviceConnection.pipe(socket.stream)
+
+      # when the person stream sends some data emit it to all conneced sockets
+      serviceConnection.on 'data', (data) ->
         log.info "data:", data
-        socket.emit "data", data for socket in sockets
-      )
-      client.on('end', () ->
+        nspPersonStream.emit(data)
+
+      serviceConnection.on 'end', () ->
         log.info 'ended'
-      )
 
     when "person-generator"
       if(instances.indexOf(service.port) != -1)

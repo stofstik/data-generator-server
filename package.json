@@ -6,7 +6,8 @@
   "devDependencies": {
     "coffee-project": "^1.6.1",
     "coffee-script": "^1.10.0",
-    "gulp": "^3.9.1"
+    "gulp": "^3.9.1",
+    "socket.io-stream": "^0.9.1"
   },
   "dependencies": {
     "async": "^1.2.1",

@@ -4,6 +4,7 @@ Backbone   = require "backbone"
 Backbone.$ = $
 Marionette = require "backbone.marionette"
 io         = require "socket.io-client"
+sioStream  = require "socket.io-stream"
 
 window._          = _
 window.$          = $
@@ -25,25 +26,28 @@ require "./modules/todos"
 require "./modules/persons"
 
 # setup connection logic
-address  = "http://localhost:3000"
+address  = "/person-stream"
 console.log "Connecting to #{address}"
+stream = sioStream.createStream()
 socket = io.connect "#{address}",
-	"reconnect":          true
-	"reconnection delay": 2000
+  "reconnect":          true
+  "reconnection delay": 2000
 
-socket.on "data", (data) ->
+sioStream(socket).emit 'hello', stream
+
+stream.on "data", (data) ->
   console.log data
 
 socket.on "connect", ->
-	console.log "Connected"
+  console.log "Connected man"
+  # init weird socket.io-streams handshake
+  Application.start()
 
-	Application.start()
-
-	if Backbone.History.started
-		route = Backbone.history.fragment or ""
-		Backbone.history.loadUrl route
-	else
-		Backbone.history.start()
+  if Backbone.History.started
+    route = Backbone.history.fragment or ""
+    Backbone.history.loadUrl route
+  else
+    Backbone.history.start()
 
 window.Application = Application
 window.socket      = socket
