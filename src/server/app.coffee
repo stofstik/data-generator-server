@@ -31,12 +31,10 @@ io.of('/person-stream').on "connection", (socket) ->
   # this way we can use node's stream abstraction easily
   #
   # the client emits a stream object we can use
-  sioStream(socket).on 'hello', (stream, data) ->
-    console.log('hello!')
-    socket.stream = stream
-    log.info 'stream', socket.stream
-    sockets.push socket
-  # add socket to client sockets
+  sioStream(socket).on "imastream!", (stream, data) ->
+    console.log('socket.io-stream connected') # o hai
+    socket.stream = stream # add stream to socket so its easier to work with
+    sockets.push socket    # push socket to array of connected browser clients
   log.info "Socket connected, #{sockets.length} client(s) active"
 
   # disconnect logic
@@ -81,15 +79,18 @@ serviceRegistry.on "connect", (socket) ->
 
   # we want to subscribe to whatever person-generator emits
   serviceRegistry.emit "subscribe-to",
-    name: "person-generator"
-  serviceRegistry.emit "subscribe-to",
     name: "person-stream"
+  serviceRegistry.emit "subscribe-to",
+    name: "person-generator"
 
 instances = []
 # when a new service we are subscribed to starts, connect to it
 serviceRegistry.on "service-up", (service) ->
   switch service.name
     when "person-stream"
+      ###
+        # Stream all the things!
+        ###
       if(instances.indexOf(service.port) != -1)
         log.info "already connected"
         return
@@ -97,24 +98,26 @@ serviceRegistry.on "service-up", (service) ->
       # connect to our person stream service directly using a TCP stream
       serviceConnection = net.createConnection { port: service.port }, () ->
         log.info "connected to #{service.name}:#{service.port}"
+        instances.push service.port
 
-      serviceConnection.setEncoding('utf-8')
-
-      nspPersonStream = io.of "/person-stream"
-
-      for socket in sockets
-        console.log socket.stream
-        serviceConnection.pipe(socket.stream)
-
-      # when the person stream sends some data emit it to all conneced sockets
+      # tcp stream on data write data to socket stream
       serviceConnection.on 'data', (data) ->
+        return unless sockets.length
         log.info "data:", data
-        socket.stream.write(data) for socket in sockets
+        for socket in sockets
+          return unless socket.stream
+          socket.stream.write(data)
 
+      # socket disconnecting, log and remove from instances array
       serviceConnection.on 'end', () ->
         log.info 'ended'
+        console.info "disconnected from, #{service.name}:#{service.port}"
+        instances.splice instances.indexOf(service.port), 1
 
     when "person-generator"
+      ###
+        # Use socket.io to emit data from one service to another
+        ###
       if(instances.indexOf(service.port) != -1)
         log.info "already connected"
         return
