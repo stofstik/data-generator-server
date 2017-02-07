@@ -102,6 +102,7 @@ serviceRegistry.on "service-up", (service) ->
 
       # tcp stream on data write data to socket stream
       serviceConnection.on 'data', (data) ->
+        return unless sockets.length
         log.info "data:", data
         socket.stream.write(data) for socket in sockets
 
