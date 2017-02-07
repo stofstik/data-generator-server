@@ -33,14 +33,16 @@ socket = io.connect "#{address}",
   "reconnect":          true
   "reconnection delay": 2000
 
+# send a stream object over sockets so we can stream to it on the server
 sioStream(socket).emit 'hello', stream
 
+# on data of our stream object log it to the console
 stream.on "data", (data) ->
-  console.log data
+  console.log data.toString 'utf-8'
 
 socket.on "connect", ->
   console.log "Connected man"
-  # init weird socket.io-streams handshake
+
   Application.start()
 
   if Backbone.History.started

@@ -26,18 +26,18 @@ SERVICE_NAME = "web-server"
 sockets = []
 
 # websocket connection logic
-io.on "connection", (socket) ->
-  # add socket to client sockets
-  outgoing = sioStream.createStream()
-  sioStream(socket).on 'hello', (stream) ->
+io.of('/person-stream').on "connection", (socket) ->
+  # when a client socket connects we want to wrap it using socket.io-stream
+  # this way we can use node's stream abstraction easily
+  #
+  # the client emits a stream object we can use
+  sioStream(socket).on 'hello', (stream, data) ->
+    console.log('hello!')
     socket.stream = stream
-  sockets.push socket
-  log.info socket.stream
+    log.info 'stream', socket.stream
+    sockets.push socket
+  # add socket to client sockets
   log.info "Socket connected, #{sockets.length} client(s) active"
-
-  # TODO some kind of filter to pass on to the generators
-  socket.on "setFilter", (filter) ->
-    console.log filter
 
   # disconnect logic
   socket.on "disconnect", ->
@@ -100,15 +100,16 @@ serviceRegistry.on "service-up", (service) ->
 
       serviceConnection.setEncoding('utf-8')
 
-      nspPersonStream = io.of '/person-stream'
+      nspPersonStream = io.of "/person-stream"
 
       for socket in sockets
+        console.log socket.stream
         serviceConnection.pipe(socket.stream)
 
       # when the person stream sends some data emit it to all conneced sockets
       serviceConnection.on 'data', (data) ->
         log.info "data:", data
-        nspPersonStream.emit(data)
+        socket.stream.write(data) for socket in sockets
 
       serviceConnection.on 'end', () ->
         log.info 'ended'
