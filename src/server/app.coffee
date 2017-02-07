@@ -31,8 +31,8 @@ io.of('/person-stream').on "connection", (socket) ->
   # this way we can use node's stream abstraction easily
   #
   # the client emits a stream object we can use
-  sioStream(socket).on 'hello', (stream, data) ->
-    console.log('hello!')  # o hai
+  sioStream(socket).on "imastream!", (stream, data) ->
+    console.log('socket.io-stream connected') # o hai
     socket.stream = stream # add stream to socket so its easier to work with
     sockets.push socket    # push socket to array of connected browser clients
   log.info "Socket connected, #{sockets.length} client(s) active"
@@ -104,7 +104,9 @@ serviceRegistry.on "service-up", (service) ->
       serviceConnection.on 'data', (data) ->
         return unless sockets.length
         log.info "data:", data
-        socket.stream.write(data) for socket in sockets
+        for socket in sockets
+          return unless socket.stream
+          socket.stream.write(data)
 
       # socket disconnecting, log and remove from instances array
       serviceConnection.on 'end', () ->

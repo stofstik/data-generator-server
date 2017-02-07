@@ -32,12 +32,13 @@ socket = io.connect "#{address}",
   "reconnect":          true
   "reconnection delay": 2000
 
+# start the app when socket.io is connected to the server
 socket.on "connect", ->
   console.log "Connected"
   # create a socket.io-stream object
   stream = sioStream.createStream()
   # send a stream object over sockets so we can stream to it on the server
-  sioStream(socket).emit 'hello', stream
+  sioStream(socket).emit 'imastream!', stream
   # on data of our stream object log it to the console
   stream.on "data", (data) ->
     console.log data.toString 'utf-8'
