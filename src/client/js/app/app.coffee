@@ -26,10 +26,10 @@ require "./modules/todos"
 require "./modules/persons"
 
 # setup connection logic
-address  = "/person-stream"
+address  = "/"
 console.log "Connecting to #{address}"
 socket = io.connect "#{address}",
-  "reconnect":          true
+  "reconnection": true
   "reconnection delay": 2000
 
 # start the app when socket.io is connected to the server
@@ -37,8 +37,8 @@ socket.on "connect", ->
   console.log "Connected"
   # create a socket.io-stream object
   stream = sioStream.createStream()
-  # send a stream object over sockets so we can stream to it on the server
-  sioStream(socket).emit 'imastream!', stream
+  # send the stream object over socket.io so we can pipe to it on the server
+  sioStream(socket).emit "streamplz", stream
   # on data of our stream object log it to the console
   stream.on "data", (data) ->
     console.log data.toString 'utf-8'
