@@ -24,6 +24,7 @@
     "express": "^4.12.4",
     "jade": "^1.11.0",
     "jquery": "^2.1.4",
+    "jsonstream2": "^1.1.1",
     "method-override": "^2.3.3",
     "mongoose": "^4.7.7",
     "request": "^2.79.0",
