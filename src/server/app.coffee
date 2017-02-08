@@ -66,9 +66,12 @@ serviceRegistry.on "connect", (socket) ->
 
 class MyTransform extends Transform
   constructor: (options = {}) ->
+    options.highWaterMark = 64
     super options
     @on "data", (data) ->
-      # console.log @_readableState.buffer.length
+      console.log "MT R-buf:", @_readableState.buffer.length
+      console.log "MT W-buf:", @_writableState.getBuffer.length
+      console.log data.toString "utf-8"
     @on "pipe", (src) ->
       console.log "piping to transform stream"
     @on "end", () ->
@@ -128,7 +131,6 @@ serviceRegistry.on "service-up", (service) ->
 
       # socket disconnecting, log and remove from services array
       service.tcpConnection.on 'end', () ->
-        this.highWaterMark = 1
         log.info 'ended'
         console.info "disconnected from, #{service.name}:#{service.port}"
         services.splice services.indexOf(service), 1
@@ -164,8 +166,11 @@ serviceRegistry.on "service-up", (service) ->
 rePipe = (streams) ->
   sz = new StreamZipper
       sortFn: (object) ->
-          object
+          return unless object
+          JSON.parse(object).date
       streams: streams
+  sz.on "data", (data) ->
+    console.log "SZ R-buf:", @_readableState.buffer.length
   sz.pipe myTransform, end: false
 
 # notify of service registry disconnect
