@@ -11,6 +11,8 @@ socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
 sioStream      = require "socket.io-stream"
 errorHandler   = require "error-handler"
+{ Transform }  = require "stream"
+StreamZipper   = require "@tn-group/streamzipper"
 
 log            = require "./lib/log"
 
@@ -21,32 +23,6 @@ io             = socketio.listen server
 # fixed location of service registry
 servRegAddress = "http://localhost:3001"
 SERVICE_NAME   = "web-server"
-
-clients  = [] # collection of client sockets
-services = [] # collection of connected services
-
-# client websocket connection logic
-io.on "connection", (client) ->
-  # this connecting client wants to connect using streams
-  sioStream(client).on "streamplz", (stream, data) ->
-    console.log('socket.io-stream connected')
-    # add stream to socket object so we can write to it when
-    # a new service connects
-    client.sioStream = stream
-    # pipe all current connected services to this socket if it has a stream
-    for service in services
-      return unless service.tcpConnection
-      service.tcpConnection.pipe client.sioStream
-    # push socket to array of connected clients
-    clients.push client
-
-  log.info "Socket connected, #{clients.length} client(s) active"
-
-  # disconnect logic
-  client.on "disconnect", ->
-    # remove socket from client sockets array
-    clients.splice clients.indexOf(client), 1
-    log.info "Socket disconnected, #{clients.length} client(s) active"
 
 # express application middleware
 app
@@ -88,7 +64,45 @@ serviceRegistry.on "connect", (socket) ->
   serviceRegistry.emit "subscribe-to",
     name: "person-generator"
 
-# when a new service we are subscribed to starts, connect to it
+class MyTransform extends Transform
+  constructor: (options = {}) ->
+    super options
+    @on "data", (data) ->
+      # console.log @_readableState.buffer.length
+    @on "pipe", (src) ->
+      console.log "piping to transform stream"
+    @on "end", () ->
+      console.log "ended transform stream"
+
+  _transform: (chunk, enc, cb) ->
+    cb null, chunk
+
+myTransform = new MyTransform
+
+###
+  # Client Handlers
+  ###
+clients  = [] # collection of client sockets
+io.on "connection", (client) ->
+  # this connecting client wants to connect using streams
+  sioStream(client).on "streamplz", (stream, data) ->
+    console.log('socket.io-stream connected')
+    client.sioStream = stream
+    myTransform.pipe stream
+    clients.push client
+
+  log.info "Socket connected, #{clients.length} client(s) active"
+
+  # disconnect logic
+  client.on "disconnect", ->
+    # remove socket from client sockets array
+    clients.splice clients.indexOf(client), 1
+    log.info "Socket disconnected, #{clients.length} client(s) active"
+
+###
+  # Service Handlers
+  ###
+services = [] # collection of connected services
 serviceRegistry.on "service-up", (service) ->
   # Check if we already have connection
   exists = services.filter (s) ->
@@ -106,17 +120,20 @@ serviceRegistry.on "service-up", (service) ->
       # connect to our person stream service directly using a TCP stream
       service.tcpConnection = net.createConnection { port: service.port }, () ->
         log.info "connected to #{service.name}:#{service.port}"
-        this.on "data", (data) ->
-          console.log data.toString "utf-8"
         services.push service
-        for client in clients
-          this.pipe client.sioStream
+        this.on "data", (data) ->
+          # console.log "r%s", this._readableState.buffer.length
+        rePipe services.map (s) ->
+          return s.tcpConnection if s.tcpConnection
 
       # socket disconnecting, log and remove from services array
       service.tcpConnection.on 'end', () ->
+        this.highWaterMark = 1
         log.info 'ended'
         console.info "disconnected from, #{service.name}:#{service.port}"
         services.splice services.indexOf(service), 1
+        rePipe services.map (s) ->
+          return s.tcpConnection if s.tcpConnection
 
     when "person-generator"
       ###
@@ -140,6 +157,16 @@ serviceRegistry.on "service-up", (service) ->
 
     else
       log.info "unknown service, did we subscribe to that?"
+
+###
+  # combine all streams using StreamZipper, then pipe output to Transform stream
+  ###
+rePipe = (streams) ->
+  sz = new StreamZipper
+      sortFn: (object) ->
+          object
+      streams: streams
+  sz.pipe myTransform, end: false
 
 # notify of service registry disconnect
 serviceRegistry.on "disconnect", () ->
