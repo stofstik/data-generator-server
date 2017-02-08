@@ -14,34 +14,38 @@ errorHandler   = require "error-handler"
 
 log            = require "./lib/log"
 
-app          = express()
-server       = http.createServer app
-io           = socketio.listen server
+app            = express()
+server         = http.createServer app
+io             = socketio.listen server
+
 # fixed location of service registry
 servRegAddress = "http://localhost:3001"
-
-SERVICE_NAME = "web-server"
+SERVICE_NAME   = "web-server"
 
 clients  = [] # collection of client sockets
 services = [] # collection of connected services
 
 # client websocket connection logic
-io.of('/person-stream').on "connection", (clientSocket) ->
-  # when a client socket connects we want to wrap it using socket.io-stream
-  # this way we can use node's stream abstraction easily
-  #
-  # the client emits a stream object we can use
-  sioStream(clientSocket).on "imastream!", (stream, data) ->
-    console.log('socket.io-stream connected') # o hai
-    clientSocket.sioStream = stream # add stream to socket so we can write to it
-    clients.push clientSocket       # push socket to array of connected browser clients
+io.on "connection", (client) ->
+  # this connecting client wants to connect using streams
+  sioStream(client).on "streamplz", (stream, data) ->
+    console.log('socket.io-stream connected')
+    # add stream to socket object so we can write to it when
+    # a new service connects
+    client.sioStream = stream
+    # pipe all current connected services to this socket if it has a stream
+    for service in services
+      return unless service.tcpConnection
+      service.tcpConnection.pipe client.sioStream
+    # push socket to array of connected clients
+    clients.push client
 
   log.info "Socket connected, #{clients.length} client(s) active"
 
   # disconnect logic
-  clientSocket.on "disconnect", ->
+  client.on "disconnect", ->
     # remove socket from client sockets array
-    clients.splice clients.indexOf(clientSocket), 1
+    clients.splice clients.indexOf(client), 1
     log.info "Socket disconnected, #{clients.length} client(s) active"
 
 # express application middleware
@@ -87,7 +91,9 @@ serviceRegistry.on "connect", (socket) ->
 # when a new service we are subscribed to starts, connect to it
 serviceRegistry.on "service-up", (service) ->
   # Check if we already have connection
-  if(services.indexOf(service.port) != -1)
+  exists = services.filter (s) ->
+    s.port == service.port
+  if(exists.length > 0)
     log.info "already connected"
     return
 
@@ -98,30 +104,19 @@ serviceRegistry.on "service-up", (service) ->
         ###
       log.info "person-stream up"
       # connect to our person stream service directly using a TCP stream
-      serviceConnection = net.createConnection { port: service.port }, () ->
+      service.tcpConnection = net.createConnection { port: service.port }, () ->
         log.info "connected to #{service.name}:#{service.port}"
-        services.push service.port
-
-      for client in clients
-        return unless client.sioStream
-        serviceConnection.pipe client.sioStream
-
-
-      # tcp stream on data write data to socket stream
-      ###
-        # serviceConnection.on 'data', (data) ->
-        #   return unless clients.length
-        #   log.info "data:", data
-        #   for client in clients
-        #     return unless client.sioStream
-        #     client.sioStream.write(data)
-        ###
+        this.on "data", (data) ->
+          console.log data.toString "utf-8"
+        services.push service
+        for client in clients
+          this.pipe client.sioStream
 
       # socket disconnecting, log and remove from services array
-      serviceConnection.on 'end', () ->
+      service.tcpConnection.on 'end', () ->
         log.info 'ended'
         console.info "disconnected from, #{service.name}:#{service.port}"
-        services.splice services.indexOf(service.port), 1
+        services.splice services.indexOf(service), 1
 
     when "person-generator"
       ###
@@ -133,11 +128,11 @@ serviceRegistry.on "service-up", (service) ->
 
       instance.on "connect", (socket) ->
         console.info "connected to, #{service.name}:#{service.port}"
-        services.push service.port
+        services.push service
 
       instance.on "disconnect", (socket) ->
         console.info "disconnected from, #{service.name}:#{service.port}"
-        services.splice services.indexOf(service.port), 1
+        services.splice services.indexOf(service), 1
 
       instance.on "data", (data) ->
         log.info data
