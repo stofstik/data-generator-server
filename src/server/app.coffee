@@ -22,26 +22,27 @@ servRegAddress = "http://localhost:3001"
 
 SERVICE_NAME = "web-server"
 
-# collection of client sockets
-sockets = []
+clients  = [] # collection of client sockets
+services = [] # collection of connected services
 
-# websocket connection logic
-io.of('/person-stream').on "connection", (socket) ->
+# client websocket connection logic
+io.of('/person-stream').on "connection", (clientSocket) ->
   # when a client socket connects we want to wrap it using socket.io-stream
   # this way we can use node's stream abstraction easily
   #
   # the client emits a stream object we can use
-  sioStream(socket).on "imastream!", (stream, data) ->
+  sioStream(clientSocket).on "imastream!", (stream, data) ->
     console.log('socket.io-stream connected') # o hai
-    socket.stream = stream # add stream to socket so its easier to work with
-    sockets.push socket    # push socket to array of connected browser clients
-  log.info "Socket connected, #{sockets.length} client(s) active"
+    clientSocket.sioStream = stream # add stream to socket so we can write to it
+    clients.push clientSocket       # push socket to array of connected browser clients
+
+  log.info "Socket connected, #{clients.length} client(s) active"
 
   # disconnect logic
-  socket.on "disconnect", ->
-    # remove socket from client sockets
-    sockets.splice sockets.indexOf(socket), 1
-    log.info "Socket disconnected, #{sockets.length} client(s) active"
+  clientSocket.on "disconnect", ->
+    # remove socket from client sockets array
+    clients.splice clients.indexOf(clientSocket), 1
+    log.info "Socket disconnected, #{clients.length} client(s) active"
 
 # express application middleware
 app
@@ -83,58 +84,64 @@ serviceRegistry.on "connect", (socket) ->
   serviceRegistry.emit "subscribe-to",
     name: "person-generator"
 
-instances = []
 # when a new service we are subscribed to starts, connect to it
 serviceRegistry.on "service-up", (service) ->
+  # Check if we already have connection
+  if(services.indexOf(service.port) != -1)
+    log.info "already connected"
+    return
+
   switch service.name
     when "person-stream"
       ###
         # Stream all the things!
         ###
-      if(instances.indexOf(service.port) != -1)
-        log.info "already connected"
-        return
       log.info "person-stream up"
       # connect to our person stream service directly using a TCP stream
       serviceConnection = net.createConnection { port: service.port }, () ->
         log.info "connected to #{service.name}:#{service.port}"
-        instances.push service.port
+        services.push service.port
+
+      for client in clients
+        return unless client.sioStream
+        serviceConnection.pipe client.sioStream
+
 
       # tcp stream on data write data to socket stream
-      serviceConnection.on 'data', (data) ->
-        return unless sockets.length
-        log.info "data:", data
-        for socket in sockets
-          return unless socket.stream
-          socket.stream.write(data)
+      ###
+        # serviceConnection.on 'data', (data) ->
+        #   return unless clients.length
+        #   log.info "data:", data
+        #   for client in clients
+        #     return unless client.sioStream
+        #     client.sioStream.write(data)
+        ###
 
-      # socket disconnecting, log and remove from instances array
+      # socket disconnecting, log and remove from services array
       serviceConnection.on 'end', () ->
         log.info 'ended'
         console.info "disconnected from, #{service.name}:#{service.port}"
-        instances.splice instances.indexOf(service.port), 1
+        services.splice services.indexOf(service.port), 1
 
     when "person-generator"
       ###
-        # Use socket.io to emit data from one service to another
+        # Use socket.io to emit data from this service to all clients
         ###
-      if(instances.indexOf(service.port) != -1)
-        log.info "already connected"
-        return
+      log.info "person-generator up"
       instance = ioClient.connect "http://localhost:#{service.port}",
         "reconnection": false
 
       instance.on "connect", (socket) ->
         console.info "connected to, #{service.name}:#{service.port}"
-        instances.push service.port
+        services.push service.port
 
       instance.on "disconnect", (socket) ->
         console.info "disconnected from, #{service.name}:#{service.port}"
-        instances.splice instances.indexOf(service.port), 1
+        services.splice services.indexOf(service.port), 1
 
       instance.on "data", (data) ->
         log.info data
-        socket.emit "persons:create", data for socket in sockets
+        client.emit "persons:create", data for client in clients
 
     else
       log.info "unknown service, did we subscribe to that?"
