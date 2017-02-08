@@ -1,4 +1,5 @@
 # required modules
+_              = require "underscore"
 async          = require "async"
 http           = require "http"
 net            = require "net"
@@ -11,6 +12,7 @@ socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
 sioStream      = require "socket.io-stream"
 errorHandler   = require "error-handler"
+jsonstream2    = require "jsonstream2"
 { Transform }  = require "stream"
 StreamZipper   = require "@tn-group/streamzipper"
 
@@ -66,12 +68,7 @@ serviceRegistry.on "connect", (socket) ->
 
 class MyTransform extends Transform
   constructor: (options = {}) ->
-    options.highWaterMark = 64
-    super options
-    @on "data", (data) ->
-      console.log "MT R-buf:", @_readableState.buffer.length
-      console.log "MT W-buf:", @_writableState.getBuffer.length
-      console.log data.toString "utf-8"
+    super objectMode: true
     @on "pipe", (src) ->
       console.log "piping to transform stream"
     @on "end", () ->
@@ -80,18 +77,18 @@ class MyTransform extends Transform
   _transform: (chunk, enc, cb) ->
     cb null, chunk
 
-myTransform = new MyTransform
+combinedStream = new MyTransform
 
 ###
   # Client Handlers
   ###
-clients  = [] # collection of client sockets
+clients = [] # collection of client sockets
 io.on "connection", (client) ->
   # this connecting client wants to connect using streams
   sioStream(client).on "streamplz", (stream, data) ->
-    console.log('socket.io-stream connected')
+    console.log "socket.io-stream connected"
     client.sioStream = stream
-    myTransform.pipe stream
+    combinedStream.pipe stream
     clients.push client
 
   log.info "Socket connected, #{clients.length} client(s) active"
@@ -124,18 +121,13 @@ serviceRegistry.on "service-up", (service) ->
       service.tcpConnection = net.createConnection { port: service.port }, () ->
         log.info "connected to #{service.name}:#{service.port}"
         services.push service
-        this.on "data", (data) ->
-          # console.log "r%s", this._readableState.buffer.length
-        rePipe services.map (s) ->
-          return s.tcpConnection if s.tcpConnection
+        service.tcpConnection.pipe combinedStream, end: false
 
       # socket disconnecting, log and remove from services array
       service.tcpConnection.on 'end', () ->
         log.info 'ended'
-        console.info "disconnected from, #{service.name}:#{service.port}"
+        log.info "disconnected from, #{service.name}:#{service.port}"
         services.splice services.indexOf(service), 1
-        rePipe services.map (s) ->
-          return s.tcpConnection if s.tcpConnection
 
     when "person-generator"
       ###
@@ -159,19 +151,6 @@ serviceRegistry.on "service-up", (service) ->
 
     else
       log.info "unknown service, did we subscribe to that?"
-
-###
-  # combine all streams using StreamZipper, then pipe output to Transform stream
-  ###
-rePipe = (streams) ->
-  sz = new StreamZipper
-      sortFn: (object) ->
-          return unless object
-          JSON.parse(object).date
-      streams: streams
-  sz.on "data", (data) ->
-    console.log "SZ R-buf:", @_readableState.buffer.length
-  sz.pipe myTransform, end: false
 
 # notify of service registry disconnect
 serviceRegistry.on "disconnect", () ->

@@ -36,7 +36,9 @@ socket = io.connect "#{address}",
 socket.on "connect", ->
   console.log "Connected"
   # create a socket.io-stream object
-  stream = sioStream.createStream()
+  stream = sioStream.createStream
+    objectMode: true
+
   # send the stream object over socket.io so we can pipe to it on the server
   sioStream(socket).emit "streamplz", stream
   # on data of our stream object log it to the console
