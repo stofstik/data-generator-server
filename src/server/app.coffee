@@ -12,11 +12,10 @@ socketio       = require "socket.io"
 ioClient       = require "socket.io-client"
 sioStream      = require "socket.io-stream"
 errorHandler   = require "error-handler"
-jsonstream2    = require "jsonstream2"
-{ Transform }  = require "stream"
-StreamZipper   = require "@tn-group/streamzipper"
+jsonstream     = require "jsonstream2"
 
 log            = require "./lib/log"
+PullDuplex     = require "./lib/PullDuplex"
 
 app            = express()
 server         = http.createServer app
@@ -66,18 +65,7 @@ serviceRegistry.on "connect", (socket) ->
   serviceRegistry.emit "subscribe-to",
     name: "person-generator"
 
-class MyTransform extends Transform
-  constructor: (options = {}) ->
-    super objectMode: true
-    @on "pipe", (src) ->
-      console.log "piping to transform stream"
-    @on "end", () ->
-      console.log "ended transform stream"
-
-  _transform: (chunk, enc, cb) ->
-    cb null, chunk
-
-combinedStream = new MyTransform
+pullDuplex = new PullDuplex
 
 ###
   # Client Handlers
@@ -88,7 +76,7 @@ io.on "connection", (client) ->
   sioStream(client).on "streamplz", (stream, data) ->
     console.log "socket.io-stream connected"
     client.sioStream = stream
-    combinedStream.pipe stream
+    pullDuplex.pipe stream, end: false
     clients.push client
 
   log.info "Socket connected, #{clients.length} client(s) active"
@@ -121,7 +109,8 @@ serviceRegistry.on "service-up", (service) ->
       service.tcpConnection = net.createConnection { port: service.port }, () ->
         log.info "connected to #{service.name}:#{service.port}"
         services.push service
-        service.tcpConnection.pipe combinedStream, end: false
+        service.tcpConnection.pipe(jsonstream.parse()).pipe pullDuplex,
+          end: false
 
       # socket disconnecting, log and remove from services array
       service.tcpConnection.on 'end', () ->
