@@ -43,7 +43,7 @@ socket.on "connect", ->
   sioStream(socket).emit "streamplz", stream
   # on data of our stream object log it to the console
   stream.on "data", (data) ->
-    console.log data.toString 'utf-8'
+    console.log data
 
   # start the client app
   Application.start()
