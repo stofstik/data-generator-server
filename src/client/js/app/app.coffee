@@ -32,9 +32,9 @@ socket = io.connect "#{address}",
   "reconnection": true
   "reconnection delay": 2000
 
-# hack to play pause
+# hack to play pause stream
 stream = sioStream.createStream
-  objectMode:    true
+  objectMode: true
 window.onkeyup = (e) ->
   if !stream.isPaused()
     console.log 'pausing'
