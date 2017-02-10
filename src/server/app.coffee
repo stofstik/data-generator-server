@@ -76,7 +76,7 @@ io.on "connection", (client) ->
   sioStream(client).on "streamplz", (stream, data) ->
     console.log "socket.io-stream connected"
     client.sioStream = stream
-    pullDuplex.pipe stream, end: false
+    pullDuplex.pipe stream
     clients.push client
 
   log.info "Socket connected, #{clients.length} client(s) active"

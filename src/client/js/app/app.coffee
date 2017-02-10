@@ -32,10 +32,9 @@ socket = io.connect "#{address}",
   "reconnection": true
   "reconnection delay": 2000
 
+# hack to play pause
 stream = sioStream.createStream
   objectMode:    true
-
-# hack to play pause
 window.onkeyup = (e) ->
   if !stream.isPaused()
     console.log 'pausing'
@@ -48,6 +47,9 @@ window.onkeyup = (e) ->
 socket.on "connect", ->
   console.log "Connected"
   # create a socket.io-stream object
+  stream = sioStream.createStream
+    objectMode:    true
+
   # send the stream object over socket.io so we can pipe to it on the server
   sioStream(socket).emit "streamplz", stream
   # on data of our stream object log it to the console
