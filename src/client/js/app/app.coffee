@@ -34,8 +34,6 @@ socket = io.connect "#{address}",
 
 stream = sioStream.createStream
   objectMode:    true
-  highWaterMark: 4
-  allowHalfOpen: true
 
 # hack to play pause
 window.onkeyup = (e) ->

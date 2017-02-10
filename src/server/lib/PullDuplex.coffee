@@ -2,7 +2,7 @@
 
 class PullDuplex extends Duplex
   constructor: (options = {}) ->
-    super objectMode: true, highWaterMark: 4
+    super objectMode: true
     @on "pipe", (src) ->
       console.log "PullDuplex pipe"
     @on "unpipe", (src) ->
@@ -12,12 +12,11 @@ class PullDuplex extends Duplex
     # holds our callback when read buffer is full.
     # gets called again on first _read
     @callbacks = []
-    setInterval @log, 2000
 
   log: =>
     console.log "writable buffer", @_writableState.getBuffer().length
     console.log "readable buffer", @_readableState.buffer.length
-    console.log "callbacks size ", @callbacks
+    console.log "callbacks      ", @callbacks
     console.log ""
 
   _write: (object, encoding, cb) ->
