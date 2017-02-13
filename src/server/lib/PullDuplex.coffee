@@ -22,7 +22,7 @@ class PullDuplex extends Duplex
   _write: (object, encoding, cb) ->
     # the piped in readable stream called write() on us passing in `object`
     # transform object so we can log buffer sizes
-    console.log object
+    # console.log object
     # call @push with object to add object to the buffer and
     # ask our readable stream if hwm is hit yet
     if @push object

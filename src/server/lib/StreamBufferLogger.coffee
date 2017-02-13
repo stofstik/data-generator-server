@@ -4,24 +4,35 @@ class StreamBufferLogger
     @streams = []
 
   start: ->
-    @stop
+    @stop()
     @interval = setInterval @log, 1000
 
   stop: ->
     clearInterval @interval if @interval
 
-  addStream: (stream) ->
+  push: (stream, name) ->
+    unless stream._readableState
+      console.log "not a stream..."
+      return
+    stream.name = name
     @streams.push stream
 
-  removeStream: (stream) ->
+  splice: (stream) ->
     @streams.splice indexOf stream, 1
 
-  log: ->
-    @streams.map (s) ->
-      console.log s._readableState.buffer.length
-      if s._writableState.getBuffer()
-        console.log s._writableState.getBuffer().length
+  log: =>
+    console.log new Date
+    @streams.map (s, i) ->
+      if s.name
+        console.log "stream #{s.name}:"
       else
-        console.log s._writableState.buffer.length
+        console.log "stream #{i}:"
+      if s._readableState
+        console.log "R", s._readableState.buffer.length
+
+      if s._writableState.getBuffer
+        console.log "W", s._writableState.getBuffer().length
+      else
+        console.log "W", s._writableState.buffer.length
 
 module.exports = StreamBufferLogger

@@ -1,25 +1,30 @@
 # required modules
-_              = require "underscore"
-async          = require "async"
-http           = require "http"
-net            = require "net"
-express        = require "express"
-request        = require "request"
-path           = require "path"
-methodOverride = require "method-override"
-bodyParser     = require "body-parser"
-socketio       = require "socket.io"
-ioClient       = require "socket.io-client"
-sioStream      = require "socket.io-stream"
-errorHandler   = require "error-handler"
-jsonstream     = require "jsonstream2"
+_                = require "underscore"
+async            = require "async"
+http             = require "http"
+net              = require "net"
+express          = require "express"
+request          = require "request"
+path             = require "path"
+methodOverride   = require "method-override"
+bodyParser       = require "body-parser"
+socketio         = require "socket.io"
+ioClient         = require "socket.io-client"
+sioStream        = require "socket.io-stream"
+errorHandler     = require "error-handler"
+jsonstream       = require "jsonstream2"
 
-log            = require "./lib/log"
-PullDuplex     = require "./lib/PullDuplex"
+log              = require "./lib/log"
+StreamLogger     = require "./lib/StreamBufferLogger"
+PullDuplex       = require "./lib/PullDuplex"
 
-app            = express()
-server         = http.createServer app
-io             = socketio.listen server
+app              = express()
+server           = http.createServer app
+io               = socketio.listen server
+personDataStream = new PullDuplex
+streamLogger     = new StreamLogger
+streamLogger.start()
+streamLogger.push personDataStream, "personDataStream"
 
 # fixed location of service registry
 servRegAddress = "http://localhost:3001"
@@ -65,8 +70,6 @@ serviceRegistry.on "connect", (socket) ->
   serviceRegistry.emit "subscribe-to",
     name: "person-generator"
 
-pullDuplex = new PullDuplex
-
 ###
   # Client Handlers
   ###
@@ -75,8 +78,9 @@ io.on "connection", (client) ->
   # this connecting client wants to connect using streams
   sioStream(client).on "streamplz", (stream, data) ->
     console.log "socket.io-stream connected"
+    streamLogger.push stream, 'client'
     client.sioStream = stream
-    pullDuplex.pipe stream
+    personDataStream.pipe stream
     clients.push client
 
   log.info "Socket connected, #{clients.length} client(s) active"
@@ -109,7 +113,10 @@ serviceRegistry.on "service-up", (service) ->
       service.tcpConnection = net.createConnection { port: service.port }, () ->
         log.info "connected to #{service.name}:#{service.port}"
         services.push service
-        service.tcpConnection.pipe(jsonstream.parse()).pipe pullDuplex,
+        streamLogger.push service.tcpConnection, 'tcpStream'
+        service.jsonstream = jsonstream.parse()
+        streamLogger.push service.jsonstream, 'jsonstream'
+        service.tcpConnection.pipe(service.jsonstream).pipe personDataStream,
           end: false
 
       # socket disconnecting, log and remove from services array
