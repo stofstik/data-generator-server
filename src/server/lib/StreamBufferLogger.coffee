@@ -35,4 +35,7 @@ class StreamBufferLogger
       else
         console.log "W", s._writableState.buffer.length
 
+      if s.bufferSize >= 0
+        console.log "B", s.bufferSize
+
 module.exports = StreamBufferLogger
